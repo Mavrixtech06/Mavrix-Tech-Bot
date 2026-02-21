@@ -1,17 +1,32 @@
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-const axios = require('axios');
 const sharp = require('sharp');
+
+const channelInfo = {
+    contextInfo: {
+        forwardingScore: 1,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+            newsletterJid: '120363161513685998@newsletter',
+            newsletterName: 'KnightBot MD',
+            serverMessageId: -1
+        }
+    }
+};
 
 async function blurCommand(sock, chatId, message, quotedMessage) {
     try {
+        await sock.sendPresenceUpdate('composing', chatId);
+        
         // Get the image to blur
         let imageBuffer;
         
         if (quotedMessage) {
-            // If replying to a message
             if (!quotedMessage.imageMessage) {
                 await sock.sendMessage(chatId, { 
-                    text: '❌ Please reply to an image message' 
+                    react: { text: '❌', key: message.key }
+                });
+                await sock.sendMessage(chatId, { 
+                    text: '❌ *Invalid Media*\n\nPlease reply to an image message' 
                 }, { quoted: message });
                 return;
             }
@@ -29,7 +44,6 @@ async function blurCommand(sock, chatId, message, quotedMessage) {
                 { }
             );
         } else if (message.message?.imageMessage) {
-            // If image is in current message
             imageBuffer = await downloadMediaMessage(
                 message,
                 'buffer',
@@ -38,46 +52,60 @@ async function blurCommand(sock, chatId, message, quotedMessage) {
             );
         } else {
             await sock.sendMessage(chatId, { 
-                text: '❌ Please reply to an image or send an image with caption .blur' 
+                react: { text: '❌', key: message.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '📸 *Image Blur*\n\nPlease reply to an image or send an image with caption `.blur`' 
             }, { quoted: message });
             return;
         }
 
+        await sock.sendMessage(chatId, {
+            react: { text: '⏳', key: message.key }
+        });
+
         // Resize and optimize image
         const resizedImage = await sharp(imageBuffer)
-            .resize(800, 800, { // Resize to max 800x800
+            .resize(800, 800, {
                 fit: 'inside',
                 withoutEnlargement: true
             })
-            .jpeg({ quality: 80 }) // Convert to JPEG with 80% quality
+            .jpeg({ quality: 80 })
             .toBuffer();
 
-        // Apply blur effect directly using sharp
+        // Apply blur effect
         const blurredImage = await sharp(resizedImage)
-            .blur(10) // Blur radius of 10
+            .blur(10)
             .toBuffer();
 
         // Send the blurred image
         await sock.sendMessage(chatId, {
             image: blurredImage,
-            caption: '*[ ✔ ] Image Blurred Successfully*',
-            contextInfo: {
-                forwardingScore: 1,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363161513685998@newsletter',
-                    newsletterName: 'KnightBot MD',
-                    serverMessageId: -1
-                }
-            }
+            caption: `╭━━━━━━━━━━━━╮
+┃  🌫️ *IMAGE BLURRED*  ┃
+╰━━━━━━━━━━━━╯
+
+✅ *Successfully blurred!*
+
+━━━━━━━━━━━━━━━
+💫 *Knight-Bot Image Tools*
+━━━━━━━━━━━━━━━`,
+            ...channelInfo
         }, { quoted: message });
+
+        await sock.sendMessage(chatId, {
+            react: { text: '✅', key: message.key }
+        });
 
     } catch (error) {
         console.error('Error in blur command:', error);
         await sock.sendMessage(chatId, { 
-            text: '❌ Failed to blur image. Please try again later.' 
+            react: { text: '❌', key: message.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: '❌ *Error*\n\nFailed to blur image. Please try again later.' 
         }, { quoted: message });
     }
 }
 
-module.exports = blurCommand; 
+module.exports = blurCommand;
