@@ -15,12 +15,12 @@ function normalizeType(input) {
 }
 
 async function sendAnimu(sock, chatId, message, type) {
+    await sock.sendPresenceUpdate('composing', chatId);
+    
     const endpoint = `${ANIMU_BASE}/${type}`;
     const res = await axios.get(endpoint);
     const data = res.data || {};
 
-    // Prefer link (gif/image). Send as sticker if applicable; fallback to image
-    // helper to convert media buffer to sticker webp
     async function convertMediaToSticker(mediaBuffer, isAnimated) {
         const tmpDir = path.join(process.cwd(), 'tmp');
         if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
@@ -40,7 +40,6 @@ async function sendAnimu(sock, chatId, message, type) {
 
         let webpBuffer = fs.readFileSync(output);
 
-        // Add sticker metadata
         const img = new webp.Image();
         await img.load(webpBuffer);
 
@@ -68,9 +67,12 @@ async function sendAnimu(sock, chatId, message, type) {
         const isGifLink = lower.endsWith('.gif');
         const isImageLink = lower.match(/\.(jpg|jpeg|png|webp)$/);
 
-        // Convert all media (GIFs and images) to stickers
         if (isGifLink || isImageLink) {
             try {
+                await sock.sendMessage(chatId, {
+                    react: { text: '🎨', key: message.key }
+                });
+                
                 const resp = await axios.get(link, {
                     responseType: 'arraybuffer',
                     timeout: 15000,
@@ -83,28 +85,37 @@ async function sendAnimu(sock, chatId, message, type) {
                     { sticker: stickerBuf },
                     { quoted: message }
                 );
+                
+                await sock.sendMessage(chatId, {
+                    react: { text: '✅', key: message.key }
+                });
                 return;
             } catch (error) {
                 console.error('Error converting media to sticker:', error);
             }
         }
 
-        // Fallback to image if conversion fails
         try {
             await sock.sendMessage(
                 chatId,
-                { image: { url: link }, caption: `anime: ${type}` },
+                { image: { url: link }, caption: `🎌 *Anime:* ${type}` },
                 { quoted: message }
             );
+            await sock.sendMessage(chatId, {
+                react: { text: '✅', key: message.key }
+            });
             return;
         } catch {}
     }
     if (data.quote) {
         await sock.sendMessage(
             chatId,
-            { text: data.quote },
+            { text: `💭 *Anime Quote*\n\n"${data.quote}"` },
             { quoted: message }
         );
+        await sock.sendMessage(chatId, {
+            react: { text: '✅', key: message.key }
+        });
         return;
     }
 
@@ -124,30 +135,47 @@ async function animeCommand(sock, chatId, message, args) {
     ];
 
     try {
+        await sock.sendPresenceUpdate('composing', chatId);
+        
         if (!sub) {
-            // Fetch supported types from API for dynamic help
             try {
                 const res = await axios.get(ANIMU_BASE);
-                const apiTypes = res.data && res.data.types ? res.data.types.map(s => s.replace('/animu/', '')).join(', ') : supported.join(', ');
-                await sock.sendMessage(chatId, { text: `Usage: .animu <type>\nTypes: ${apiTypes}` }, { quoted: message });
+                const apiTypes = res.data && res.data.types ? res.data.types.map(s => s.replace('/animu/', '')).join(' ✦ ') : supported.join(' ✦ ');
+                await sock.sendMessage(chatId, { 
+                    text: `🎌 *Anime Commands*\n\n📌 *Usage:* \`.animu <type>\`\n\n✨ *Available Types:*\n✦ ${apiTypes}\n\n💡 *Example:* \`.animu hug\`` 
+                }, { quoted: message });
             } catch {
-                await sock.sendMessage(chatId, { text: `Usage: .animu <type>\nTypes: ${supported.join(', ')}` }, { quoted: message });
+                await sock.sendMessage(chatId, { 
+                    text: `🎌 *Anime Commands*\n\n📌 *Usage:* \`.animu <type>\`\n\n✨ *Available Types:*\n✦ ${supported.join(' ✦ ')}\n\n💡 *Example:* \`.animu hug\`` 
+                }, { quoted: message });
             }
             return;
         }
 
         if (!supported.includes(sub)) {
-            await sock.sendMessage(chatId, { text: `❌ Unsupported type: ${sub}. Try one of: ${supported.join(', ')}` }, { quoted: message });
+            await sock.sendMessage(chatId, { 
+                react: { text: '❌', key: message.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: `❌ *Invalid Type*\n\nPlease choose from:\n✦ ${supported.join(' ✦ ')}` 
+            }, { quoted: message });
             return;
         }
+
+        await sock.sendMessage(chatId, {
+            react: { text: '⏳', key: message.key }
+        });
 
         await sendAnimu(sock, chatId, message, sub);
     } catch (err) {
         console.error('Error in animu command:', err);
-        await sock.sendMessage(chatId, { text: '❌ An error occurred while fetching animu.' }, { quoted: message });
+        await sock.sendMessage(chatId, { 
+            react: { text: '❌', key: message.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: '❌ *Error*\n\nAn error occurred while fetching anime content.' 
+        }, { quoted: message });
     }
 }
 
 module.exports = { animeCommand };
-
-
