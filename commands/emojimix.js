@@ -5,6 +5,8 @@ const path = require('path');
 
 async function emojimixCommand(sock, chatId, msg) {
     try {
+        await sock.sendPresenceUpdate('composing', chatId);
+        
         // Get the text after command
         const text = msg.message?.conversation?.trim() || 
                     msg.message?.extendedTextMessage?.text?.trim() || '';
@@ -12,16 +14,28 @@ async function emojimixCommand(sock, chatId, msg) {
         const args = text.split(' ').slice(1);
         
         if (!args[0]) {
-            await sock.sendMessage(chatId, { text: '🎴 Example: .emojimix 😎+🥰' });
+            await sock.sendMessage(chatId, { 
+                react: { text: '❓', key: msg.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '🎴 *Emoji Mixer*\n\n📌 *Usage:* `.emojimix 😎+🥰`\n\n✨ *Example:*\n`.emojimix 😂+😭`\n`.emojimix 🥺+😎`\n`.emojimix 🐱+🐶`'
+            });
             return;
         }
 
         if (!text.includes('+')) {
             await sock.sendMessage(chatId, { 
-                text: '✳️ Separate the emoji with a *+* sign\n\n📌 Example: \n*.emojimix* 😎+🥰' 
+                react: { text: '❌', key: msg.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '✳️ *Separate emojis with +*\n\n📌 *Example:* `.emojimix 😎+🥰`' 
             });
             return;
         }
+
+        await sock.sendMessage(chatId, {
+            react: { text: '⏳', key: msg.key }
+        });
 
         let [emoji1, emoji2] = args[0].split('+').map(e => e.trim());
 
@@ -33,7 +47,10 @@ async function emojimixCommand(sock, chatId, msg) {
 
         if (!data.results || data.results.length === 0) {
             await sock.sendMessage(chatId, { 
-                text: '❌ These emojis cannot be mixed! Try different ones.' 
+                react: { text: '❌', key: msg.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '❌ *Cannot Mix*\n\nThese emojis cannot be mixed! Try different ones.' 
             });
             return;
         }
@@ -47,7 +64,7 @@ async function emojimixCommand(sock, chatId, msg) {
             fs.mkdirSync(tmpDir, { recursive: true });
         }
 
-        // Generate random filenames with escaped paths
+        // Generate random filenames
         const tempFile = path.join(tmpDir, `temp_${Date.now()}.png`).replace(/\\/g, '/');
         const outputFile = path.join(tmpDir, `sticker_${Date.now()}.webp`).replace(/\\/g, '/');
 
@@ -56,7 +73,7 @@ async function emojimixCommand(sock, chatId, msg) {
         const buffer = await imageResponse.buffer();
         fs.writeFileSync(tempFile, buffer);
 
-        // Convert to WebP using ffmpeg with proper path escaping
+        // Convert to WebP using ffmpeg
         const ffmpegCommand = `ffmpeg -i "${tempFile}" -vf "scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" "${outputFile}"`;
         
         await new Promise((resolve, reject) => {
@@ -83,6 +100,10 @@ async function emojimixCommand(sock, chatId, msg) {
             sticker: stickerBuffer 
         }, { quoted: msg });
 
+        await sock.sendMessage(chatId, {
+            react: { text: '✅', key: msg.key }
+        });
+
         // Cleanup temp files
         try {
             fs.unlinkSync(tempFile);
@@ -94,9 +115,12 @@ async function emojimixCommand(sock, chatId, msg) {
     } catch (error) {
         console.error('Error in emojimix command:', error);
         await sock.sendMessage(chatId, { 
-            text: '❌ Failed to mix emojis! Make sure you\'re using valid emojis.\n\nExample: .emojimix 😎+🥰' 
+            react: { text: '❌', key: msg.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: '❌ *Failed*\n\nCould not mix emojis! Make sure you\'re using valid emojis.\n\n📌 *Example:* `.emojimix 😎+🥰`' 
         });
     }
 }
 
-module.exports = emojimixCommand; 
+module.exports = emojimixCommand;
