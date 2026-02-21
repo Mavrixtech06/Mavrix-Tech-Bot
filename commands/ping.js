@@ -21,26 +21,37 @@ function formatTime(seconds) {
 async function pingCommand(sock, chatId, message) {
     try {
         const start = Date.now();
-        await sock.sendMessage(chatId, { text: 'Pong!' }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '🏓 *Pong!*' }, { quoted: message });
         const end = Date.now();
         const ping = Math.round((end - start) / 2);
 
         const uptimeInSeconds = process.uptime();
         const uptimeFormatted = formatTime(uptimeInSeconds);
+        
+        const memoryUsed = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+        const memoryTotal = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
+        const cpuCores = os.cpus().length;
 
         const botInfo = `
-┏━━〔 🤖 𝐊𝐧𝐢𝐠𝐡𝐭𝐁𝐨𝐭-𝐌𝐃 〕━━┓
-┃ 🚀 Ping     : ${ping} ms
-┃ ⏱️ Uptime   : ${uptimeFormatted}
-┃ 🔖 Version  : v${settings.version}
-┗━━━━━━━━━━━━━━━━━━━┛`.trim();
+╭─「 🤖 *SYSTEM STATUS* 」─╮
+│
+│  🚀 *Response*    : ${ping}ms
+│  ⏱️ *Uptime*      : ${uptimeFormatted}
+│  🔖 *Version*     : v${settings.version}
+│  💾 *Memory*      : ${memoryUsed} MB / ${memoryTotal} GB
+│  🖥️ *CPU Cores*   : ${cpuCores}
+│  📊 *Platform*    : ${os.platform()}
+│
+╰──────────────────────╯
+
+✨ _All systems operational!_`.trim();
 
         // Reply to the original message with the bot info
-        await sock.sendMessage(chatId, { text: botInfo},{ quoted: message });
+        await sock.sendMessage(chatId, { text: botInfo }, { quoted: message });
 
     } catch (error) {
         console.error('Error in ping command:', error);
-        await sock.sendMessage(chatId, { text: '❌ Failed to get bot status.' });
+        await sock.sendMessage(chatId, { text: '❌ *Status check failed*\n_Try again in a moment!_', quoted: message });
     }
 }
 
