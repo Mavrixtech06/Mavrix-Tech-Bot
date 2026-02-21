@@ -1,16 +1,34 @@
 const settings = require("../settings");
+
 async function aliveCommand(sock, chatId, message) {
     try {
-        const message1 = `*🤖 Knight Bot is Active!*\n\n` +
-                       `*Version:* ${settings.version}\n` +
-                       `*Status:* Online\n` +
-                       `*Mode:* Public\n\n` +
-                       `*🌟 Features:*\n` +
-                       `• Group Management\n` +
-                       `• Antilink Protection\n` +
-                       `• Fun Commands\n` +
-                       `• And more!\n\n` +
-                       `Type *.menu* for full command list`;
+        await sock.sendPresenceUpdate('composing', chatId);
+        
+        await sock.sendMessage(chatId, {
+            react: { text: '💚', key: message.key }
+        });
+
+        const message1 = `╭━━━━━━━━━━━━╮
+┃  💚 *BOT STATUS*  ┃
+╰━━━━━━━━━━━━╯
+
+📊 *System Info*
+├ 🤖 *Bot:* Knight Bot
+├ 📌 *Version:* ${settings.version}
+├ ⚡ *Status:* ● Online
+├ 🔓 *Mode:* Public
+└ 🕒 *Uptime:* Active
+
+🌟 *Features*
+├ 👥 Group Management
+├ 🛡️ Antilink Protection
+├ 🎮 Fun Commands
+├ 📥 Media Downloader
+└ ✨ And much more!
+
+━━━━━━━━━━━━━━━
+💡 Type *.menu* to see all commands
+━━━━━━━━━━━━━━━`;
 
         await sock.sendMessage(chatId, {
             text: message1,
@@ -24,9 +42,19 @@ async function aliveCommand(sock, chatId, message) {
                 }
             }
         }, { quoted: message });
+
+        await sock.sendMessage(chatId, {
+            react: { text: '🎉', key: message.key }
+        });
+
     } catch (error) {
         console.error('Error in alive command:', error);
-        await sock.sendMessage(chatId, { text: 'Bot is alive and running!' }, { quoted: message });
+        await sock.sendMessage(chatId, { 
+            react: { text: '❌', key: message.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: '🤖 Bot is alive and running!' 
+        }, { quoted: message });
     }
 }
 
