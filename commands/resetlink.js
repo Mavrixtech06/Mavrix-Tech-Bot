@@ -1,5 +1,11 @@
-async function resetlinkCommand(sock, chatId, senderId) {
+async function resetlinkCommand(sock, chatId, senderId, message) {
     try {
+        await sock.sendPresenceUpdate('composing', chatId);
+        
+        await sock.sendMessage(chatId, {
+            react: { text: '⏳', key: message.key }
+        });
+        
         // Check if sender is admin
         const groupMetadata = await sock.groupMetadata(chatId);
         const isAdmin = groupMetadata.participants
@@ -15,27 +21,59 @@ async function resetlinkCommand(sock, chatId, senderId) {
             .includes(botId);
 
         if (!isAdmin) {
-            await sock.sendMessage(chatId, { text: '❌ Only admins can use this command!' });
+            await sock.sendMessage(chatId, { 
+                react: { text: '❌', key: message.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '👑 *Admin Only*\n\nOnly admins can use this command!' 
+            });
             return;
         }
 
         if (!isBotAdmin) {
-            await sock.sendMessage(chatId, { text: '❌ Bot must be admin to reset group link!' });
+            await sock.sendMessage(chatId, { 
+                react: { text: '❌', key: message.key }
+            });
+            await sock.sendMessage(chatId, { 
+                text: '🤖 *Bot Not Admin*\n\nBot must be admin to reset group link!' 
+            });
             return;
         }
 
         // Reset the group link
         const newCode = await sock.groupRevokeInvite(chatId);
         
+        const successMessage = `╭━━━━━━━━━━━━╮
+┃  🔗 *LINK RESET*  ┃
+╰━━━━━━━━━━━━╯
+
+✅ *Group link has been successfully reset!*
+
+📌 *New Link:*
+https://chat.whatsapp.com/${newCode}
+
+━━━━━━━━━━━━━━━
+💫 The old link no longer works
+━━━━━━━━━━━━━━━`;
+        
         // Send the new link
         await sock.sendMessage(chatId, { 
-            text: `✅ Group link has been successfully reset\n\n📌 New link:\nhttps://chat.whatsapp.com/${newCode}`
+            text: successMessage
+        });
+
+        await sock.sendMessage(chatId, {
+            react: { text: '✅', key: message.key }
         });
 
     } catch (error) {
         console.error('Error in resetlink command:', error);
-        await sock.sendMessage(chatId, { text: 'Failed to reset group link!' });
+        await sock.sendMessage(chatId, { 
+            react: { text: '❌', key: message.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: '❌ *Error*\n\nFailed to reset group link!' 
+        });
     }
 }
 
-module.exports = resetlinkCommand; 
+module.exports = resetlinkCommand;
