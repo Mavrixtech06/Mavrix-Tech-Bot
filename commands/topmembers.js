@@ -31,9 +31,12 @@ function incrementMessageCount(groupId, userId) {
     saveMessageCounts(messageCounts);
 }
 
-function topMembers(sock, chatId, isGroup) {
+function topMembers(sock, chatId, isGroup, message) {
     if (!isGroup) {
-        sock.sendMessage(chatId, { text: 'This command is only available in group chats.' });
+        sock.sendMessage(chatId, { 
+            text: "👥 *This command only works in groups!*", 
+            quoted: message 
+        });
         return;
     }
 
@@ -42,19 +45,53 @@ function topMembers(sock, chatId, isGroup) {
 
     const sortedMembers = Object.entries(groupCounts)
         .sort(([, a], [, b]) => b - a)
-        .slice(0, 5); // Get top 5 members
+        .slice(0, 10); // Get top 10 members
 
     if (sortedMembers.length === 0) {
-        sock.sendMessage(chatId, { text: 'No message activity recorded yet.' });
+        sock.sendMessage(chatId, { 
+            text: "📊 *No activity yet*\n_Start chatting to appear on the leaderboard!_", 
+            quoted: message 
+        });
         return;
     }
 
-    let message = '🏆 Top Members Based on Message Count:\n\n';
+    // Calculate total messages
+    const totalMessages = Object.values(groupCounts).reduce((a, b) => a + b, 0);
+    
+    const medals = ['🥇', '🥈', '🥉'];
+    let messageText = `
+╭─「 🏆 *LEADERBOARD* 」─╮
+│
+│  📊 *Total Messages:* ${totalMessages}
+│  👥 *Active Members:* ${sortedMembers.length}
+│
+│  *Top Chatters:*
+│
+`;
+
     sortedMembers.forEach(([userId, count], index) => {
-        message += `${index + 1}. @${userId.split('@')[0]} - ${count} messages\n`;
+        const medal = index < 3 ? medals[index] : '   ';
+        const percentage = ((count / totalMessages) * 100).toFixed(1);
+        const bar = '█'.repeat(Math.floor(percentage / 10)) + '░'.repeat(10 - Math.floor(percentage / 10));
+        messageText += `│  ${medal} ${index + 1}. @${userId.split('@')[0]}\n`;
+        messageText += `│     └─ 📝 ${count} msgs (${percentage}%)\n`;
+        messageText += `│        ${bar}\n`;
+        if (index < sortedMembers.length - 1) messageText += `│\n`;
     });
 
-    sock.sendMessage(chatId, { text: message, mentions: sortedMembers.map(([userId]) => userId) });
+    messageText += `
+╰──────────────────────╯
+
+💬 _Keep the conversation going!_`.trim();
+
+    sock.sendMessage(chatId, { 
+        text: messageText, 
+        mentions: sortedMembers.map(([userId]) => userId),
+        quoted: message 
+    });
+    
+    // Send reaction
+    sock.sendMessage(chatId, { react: { text: "🏆", key: message.key } });
 }
 
 module.exports = { incrementMessageCount, topMembers };
