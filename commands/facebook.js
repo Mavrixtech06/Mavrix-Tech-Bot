@@ -8,24 +8,29 @@ async function facebookCommand(sock, chatId, message) {
         const url = text.split(' ').slice(1).join(' ').trim();
         
         if (!url) {
+            await sock.sendMessage(chatId, { 
+                react: { text: '❓', key: message.key }
+            });
             return await sock.sendMessage(chatId, { 
-                text: "Please provide a Facebook video URL.\nExample: .fb https://www.facebook.com/..."
+                text: "✨ *Missing URL*\n\nPlease provide a Facebook video URL.\n\n📌 *Example:* `.fb https://www.facebook.com/...`"
             }, { quoted: message });
         }
 
-        // Validate Facebook URL
         if (!url.includes('facebook.com')) {
+            await sock.sendMessage(chatId, { 
+                react: { text: '❌', key: message.key }
+            });
             return await sock.sendMessage(chatId, { 
-                text: "That is not a Facebook link."
+                text: "🔗 *Invalid Link*\n\nThat doesn't look like a Facebook link. Please provide a valid Facebook video URL."
             }, { quoted: message });
         }
 
-        // Send loading reaction
         await sock.sendMessage(chatId, {
             react: { text: '🔄', key: message.key }
         });
 
-        // Resolve share/short URLs to their final destination first
+        await sock.sendPresenceUpdate('composing', chatId);
+
         let resolvedUrl = url;
         try {
             const res = await axios.get(url, { timeout: 20000, maxRedirects: 10, headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -37,7 +42,6 @@ async function facebookCommand(sock, chatId, message) {
             // ignore resolution errors; use original url
         }
 
-        // Use Hanggts API
         async function fetchFromApi(u) {
             const apiUrl = `https://api.hanggts.xyz/download/facebook?url=${encodeURIComponent(u)}`;
             
@@ -53,7 +57,6 @@ async function facebookCommand(sock, chatId, message) {
                 });
                 
                 if (response.data) {
-                    // Accept response if status is true, or if response has data/result/url fields
                     if (response.data.status === true || 
                         response.data.result || 
                         response.data.data || 
@@ -69,7 +72,6 @@ async function facebookCommand(sock, chatId, message) {
             throw new Error('Hanggts API failed');
         }
 
-        // Try resolved URL, then fallback to original URL
         let apiResult;
         try {
             apiResult = await fetchFromApi(resolvedUrl);
@@ -84,28 +86,20 @@ async function facebookCommand(sock, chatId, message) {
         let fbvid = null;
         let title = null;
 
-        // Handle Hanggts API response format
-        // Try parsing even if status is not explicitly true
         if (data) {
-            // Try different possible response structures
             if (data.result) {
-                // Hanggts API format: data.result.media.video_hd or video_sd
                 if (data.result.media) {
-                    // Prefer HD, fallback to SD
                     fbvid = data.result.media.video_hd || data.result.media.video_sd;
                     title = data.result.info?.title || data.result.title || data.title || "Facebook Video";
                 }
-                // Check if result is an object with url
                 else if (typeof data.result === 'object' && data.result.url) {
                     fbvid = data.result.url;
                     title = data.result.title || data.result.caption || data.title || "Facebook Video";
                 } 
-                // Check if result is a string (direct URL)
                 else if (typeof data.result === 'string' && data.result.startsWith('http')) {
                     fbvid = data.result;
                     title = data.title || "Facebook Video";
                 }
-                // Check if result has download or video property
                 else if (data.result.download) {
                     fbvid = data.result.download;
                     title = data.result.title || data.title || "Facebook Video";
@@ -123,7 +117,6 @@ async function facebookCommand(sock, chatId, message) {
                     fbvid = data.data;
                     title = data.title || "Facebook Video";
                 } else if (Array.isArray(data.data) && data.data.length > 0) {
-                    // Array format - find best quality
                     const hdVideo = data.data.find(item => (item.quality === 'HD' || item.quality === 'high') && (item.format === 'mp4' || !item.format));
                     const sdVideo = data.data.find(item => (item.quality === 'SD' || item.quality === 'low') && (item.format === 'mp4' || !item.format));
                     fbvid = hdVideo?.url || sdVideo?.url || data.data[0]?.url;
@@ -158,14 +151,20 @@ async function facebookCommand(sock, chatId, message) {
         }
 
         if (!fbvid) {
+            await sock.sendMessage(chatId, { 
+                react: { text: '❌', key: message.key }
+            });
             return await sock.sendMessage(chatId, { 
-                text: '❌ Failed to get video URL from Facebook.\n\nPossible reasons:\n• Video is private or deleted\n• Link is invalid\n• Video is not available for download\n\nPlease try a different Facebook video link.'
+                text: '❌ *Download Failed*\n\n• Video might be private or deleted\n• Link might be invalid\n• Video not available for download\n\n💡 Try a different Facebook video link.'
             }, { quoted: message });
         }
 
-        // Try URL method first (more reliable)
+        await sock.sendMessage(chatId, {
+            react: { text: '📥', key: message.key }
+        });
+
         try {
-            const caption = title ? `𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗞𝗡𝗜𝗚𝗛𝗧-𝗕𝗢𝗧\n\n📝 Title: ${title}` : "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗞𝗡𝗜𝗚𝗛𝗧-𝗕𝗢𝗧";
+            const caption = title ? `📹 *Facebook Video*\n\n📝 *Title:* ${title}\n\n━━━━━━━━━━━━━━\n💫 Downloaded via *KNIGHT-BOT*` : "━━━━━━━━━━━━━━\n💫 Downloaded via *KNIGHT-BOT*";
             
             await sock.sendMessage(chatId, {
                 video: { url: fbvid },
@@ -173,22 +172,26 @@ async function facebookCommand(sock, chatId, message) {
                 caption: caption
             }, { quoted: message });
             
+            await sock.sendMessage(chatId, {
+                react: { text: '✅', key: message.key }
+            });
+            
             return;
         } catch (urlError) {
             console.error(`URL method failed: ${urlError.message}`);
             
-            // Fallback to buffer method
             try {
-                // Create temp directory if it doesn't exist
                 const tmpDir = path.join(process.cwd(), 'tmp');
                 if (!fs.existsSync(tmpDir)) {
                     fs.mkdirSync(tmpDir, { recursive: true });
                 }
 
-                // Generate temp file path
+                await sock.sendMessage(chatId, {
+                    react: { text: '⏳', key: message.key }
+                });
+
                 const tempFile = path.join(tmpDir, `fb_${Date.now()}.mp4`);
 
-                // Download the video
                 const videoResponse = await axios({
                     method: 'GET',
                     url: fbvid,
@@ -210,13 +213,11 @@ async function facebookCommand(sock, chatId, message) {
                     writer.on('error', reject);
                 });
 
-                // Check if file was downloaded successfully
                 if (!fs.existsSync(tempFile) || fs.statSync(tempFile).size === 0) {
                     throw new Error('Failed to download video');
                 }
 
-                // Send the video
-                const caption = title ? `𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗞𝗡𝗜𝗚𝗛𝗧-𝗕𝗢𝗧\n\n📝 Title: ${title}` : "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗞𝗡𝗜𝗚𝗛𝗧-𝗕𝗢𝗧";
+                const caption = title ? `📹 *Facebook Video*\n\n📝 *Title:* ${title}\n\n━━━━━━━━━━━━━━\n💫 Downloaded via *KNIGHT-BOT*` : "━━━━━━━━━━━━━━\n💫 Downloaded via *KNIGHT-BOT*";
                 
                 await sock.sendMessage(chatId, {
                     video: { url: tempFile },
@@ -224,7 +225,10 @@ async function facebookCommand(sock, chatId, message) {
                     caption: caption
                 }, { quoted: message });
 
-                // Clean up temp file
+                await sock.sendMessage(chatId, {
+                    react: { text: '✅', key: message.key }
+                });
+
                 try {
                     fs.unlinkSync(tempFile);
                 } catch (err) {
@@ -240,9 +244,12 @@ async function facebookCommand(sock, chatId, message) {
     } catch (error) {
         console.error('Error in Facebook command:', error);
         await sock.sendMessage(chatId, { 
-            text: "An error occurred. API might be down. Error: " + error.message
+            react: { text: '❌', key: message.key }
+        });
+        await sock.sendMessage(chatId, { 
+            text: "😓 *Oops! Something went wrong*\n\nThe download service might be temporarily unavailable. Please try again later.\n\n📋 *Error:* " + error.message
         }, { quoted: message });
     }
 }
 
-module.exports = facebookCommand; 
+module.exports = facebookCommand;
