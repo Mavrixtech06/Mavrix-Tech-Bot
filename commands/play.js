@@ -8,21 +8,24 @@ async function playCommand(sock, chatId, message) {
         
         if (!searchQuery) {
             return await sock.sendMessage(chatId, { 
-                text: "What song do you want to download?"
+                text: "🎵 *What song shall I find for you?*\n\n_Example: .play shape of you_"
             });
         }
 
+        // Send typing indicator
+        await sock.sendPresenceUpdate('composing', chatId);
+        
         // Search for the song
         const { videos } = await yts(searchQuery);
         if (!videos || videos.length === 0) {
             return await sock.sendMessage(chatId, { 
-                text: "No songs found!"
+                text: "😕 *No songs found*\n_Try a different search term!_"
             });
         }
 
         // Send loading message
         await sock.sendMessage(chatId, {
-            text: "_Please wait your download is in progress_"
+            text: "```🎵 Hunting for your music...```\n✨ _Just a moment, fetching the best quality!_"
         });
 
         // Get the first video result
@@ -35,12 +38,25 @@ async function playCommand(sock, chatId, message) {
 
         if (!data || !data.status || !data.result || !data.result.downloadUrl) {
             return await sock.sendMessage(chatId, { 
-                text: "Failed to fetch audio from the API. Please try again later."
+                text: "😅 *Download failed*\n_The music service is busy. Try again later!_"
             });
         }
 
         const audioUrl = data.result.downloadUrl;
         const title = data.result.title;
+
+        // Send found message
+        await sock.sendMessage(chatId, { 
+            text: `
+╭─「 ✨ *MUSIC FOUND* 」─╮
+│
+│  📀 *Title:* ${title.slice(0, 30)}${title.length > 30 ? '...' : ''}
+│  ⏱️ *Duration:* ${video.timestamp}
+│  👁️ *Views:* ${video.views.toLocaleString()}
+│
+╰──────────────────────╯
+⬇️ _Sending your music..._`.trim()
+        });
 
         // Send the audio
         await sock.sendMessage(chatId, {
@@ -49,15 +65,15 @@ async function playCommand(sock, chatId, message) {
             fileName: `${title}.mp3`
         }, { quoted: message });
 
+        // Send success reaction
+        await sock.sendMessage(chatId, { react: { text: "🎧", key: message.key } });
+
     } catch (error) {
         console.error('Error in song2 command:', error);
         await sock.sendMessage(chatId, { 
-            text: "Download failed. Please try again later."
+            text: "😵 *Download failed*\n_Something went wrong. Please try again!_"
         });
     }
 }
 
-module.exports = playCommand; 
-
-/*Powered by KNIGHT-BOT*
-*Credits to Keith MD*`*/
+module.exports = playCommand;
